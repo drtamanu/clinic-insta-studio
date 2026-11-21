@@ -1,0 +1,2405 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="InstaStudio" />
+  <meta name="theme-color" content="#fdf2f8" />
+  <title>Clinic Insta Studio</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <!-- Google Fonts: 美容クリニックに合う上品な明朝・ゴシック -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Shippori+Mincho:wght@600;700&display=swap" rel="stylesheet">
+  <!-- ZIP一括保存用 JSZip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg-app: #f8fafc;
+      --surface: #ffffff;
+      --ink: #1e293b;
+      --sub: #64748b;
+      --border: #e2e8f0;
+      --primary: #db2777;
+      --primary-soft: #fce7f3;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-app);
+      color: var(--ink);
+      padding-bottom: calc(90px + env(safe-area-inset-bottom));
+    }
+    button { font-family: inherit; }
+    header {
+      background: var(--surface);
+      padding: 12px 16px;
+      padding-top: calc(12px + env(safe-area-inset-top));
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+    }
+    header h1 {
+      font-size: 1rem;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+    }
+    .badge-pro {
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+    .header-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    header h1, .btn-mini, .badge-pro { white-space: nowrap; }
+    @media (max-width: 400px) {
+      .badge-pro { display: none; }
+    }
+    .btn-mini {
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    /* プレビューエリア */
+    .preview-zone {
+      background: #e2e8f0;
+      padding: 14px 12px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .canvas-wrapper {
+      width: 100%;
+      max-width: 270px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+      line-height: 0;
+    }
+    canvas { width: 100%; height: auto; display: block; }
+    .warn {
+      display: none;
+      margin-top: 8px;
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 0.74rem;
+      font-weight: 700;
+      padding: 5px 12px;
+      border-radius: 999px;
+      text-align: center;
+    }
+    .warn.show { display: block; }
+
+    /* スライドページネーション */
+    .slide-nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      max-width: 100%;
+      overflow-x: auto;
+      padding: 4px;
+    }
+    .slide-pill {
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .slide-pill.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .slide-add-btn {
+      border: 1px dashed #94a3b8;
+      background: rgba(255,255,255,0.7);
+      color: #475569;
+      border-radius: 999px;
+      padding: 5px 11px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    /* コントロールパネル */
+    .container { max-width: 640px; margin: 0 auto; padding: 12px; }
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      background: #e2e8f0;
+      padding: 4px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+    }
+    .tab-btn {
+      border: none;
+      background: transparent;
+      padding: 8px 2px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--sub);
+      border-radius: 9px;
+      cursor: pointer;
+    }
+    .tab-btn.active { background: var(--surface); color: var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--sub);
+      margin: 0 0 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .hint { font-size: 0.72rem; color: var(--sub); margin: 10px 0 0; line-height: 1.6; }
+
+    /* テンプレート選択 */
+    .tpl-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .tpl-btn {
+      text-align: left;
+      border: 1.5px solid var(--border);
+      background: #fff;
+      border-radius: 12px;
+      padding: 10px;
+      cursor: pointer;
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .tpl-btn .tpl-emoji { font-size: 1.25rem; line-height: 1; }
+    .tpl-btn strong { display: block; font-size: 0.85rem; margin: 6px 0 2px; }
+    .tpl-btn small { display: block; font-size: 0.7rem; color: var(--sub); line-height: 1.45; }
+    .tpl-btn .tpl-count {
+      margin-top: 6px;
+      font-size: 0.66rem;
+      font-weight: 700;
+      color: var(--primary);
+      background: var(--primary-soft);
+      padding: 1px 8px;
+      border-radius: 999px;
+    }
+    .tpl-btn.active { border-color: var(--primary); background: #fdf2f8; }
+
+    /* サイズ・テーマ選択グリッド */
+    .seg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .seg-btn {
+      border: 1.5px solid var(--border);
+      background: #fff;
+      border-radius: 10px;
+      padding: 8px 4px;
+      text-align: center;
+      cursor: pointer;
+    }
+    .seg-btn strong { display: block; font-size: 0.82rem; }
+    .seg-btn span { font-size: 0.7rem; color: var(--sub); }
+    .seg-btn.active { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+
+    .theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .theme-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 1.5px solid var(--border);
+      background: #fff;
+      border-radius: 10px;
+      padding: 9px 10px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--ink);
+    }
+    .theme-btn.active { border-color: var(--primary); background: #fdf2f8; }
+    .swatch { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.1); }
+
+    /* フォーム要素 */
+    .field { margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+    label { display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155; }
+    input[type="text"], input[type="password"], textarea, select {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 16px; /* iOSで入力時にズームされないよう16px */
+      font-family: inherit;
+      background: #fff;
+      color: var(--ink);
+    }
+    textarea { min-height: 92px; line-height: 1.5; resize: vertical; }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--primary); }
+
+    /* 画像アップロードボックス */
+    .upload-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px dashed #cbd5e1;
+      padding: 10px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+    }
+    .upload-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .thumb {
+      width: 44px; height: 44px; border-radius: 8px; object-fit: cover;
+      border: 1px solid var(--border); flex-shrink: 0; background: #f1f5f9;
+    }
+    .upload-info { font-size: 0.82rem; min-width: 0; }
+    .upload-info small { display: block; color: var(--sub); font-size: 0.72rem; }
+    .upload-actions { display: flex; gap: 6px; align-items: center; }
+    .file-label {
+      background: #f1f5f9;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      margin: 0;
+    }
+    input[type="file"] { display: none; }
+    .btn-clear {
+      background: #fee2e2;
+      color: #dc2626;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* AI作成タブ */
+    .btn-row { display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px; margin-top: 4px; }
+    .btn-primary, .btn-secondary {
+      border-radius: 10px; padding: 11px 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer;
+    }
+    .btn-primary { border: none; background: var(--primary); color: #fff; }
+    .btn-secondary { border: 1.5px solid var(--primary); background: #fff; color: var(--primary); }
+    .btn-primary:disabled, .btn-secondary:disabled { opacity: 0.55; }
+    .ai-status { font-size: 0.74rem; color: var(--sub); margin: 8px 0 0; line-height: 1.5; }
+    .ai-status.ok { color: #047857; }
+    .two-col { display: grid; grid-template-columns: 1.6fr 1fr; gap: 8px; }
+    .draft-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+    .draft-list li { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 0.8rem; }
+    .draft-list li b {
+      display: inline-block; font-size: 0.66rem; color: var(--primary); background: var(--primary-soft);
+      padding: 1px 8px; border-radius: 999px; margin-bottom: 3px;
+    }
+    .draft-list li span { display: block; white-space: pre-line; font-weight: 700; }
+    .draft-list li small { display: block; color: var(--sub); margin-top: 2px; }
+    .copy-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .btn-mini.strong { background: var(--primary); color: #fff; border-color: var(--primary); }
+    details > summary {
+      cursor: pointer; font-size: 0.85rem; font-weight: 700; color: var(--sub);
+      list-style: none; display: flex; justify-content: space-between; align-items: center;
+    }
+    details > summary::-webkit-details-marker { display: none; }
+    details[open] > summary { margin-bottom: 12px; }
+    .key-badge { font-size: 0.68rem; padding: 1px 8px; border-radius: 999px; background: #f1f5f9; color: var(--sub); }
+    .key-badge.ok { background: #d1fae5; color: #047857; }
+    .key-row { display: flex; gap: 6px; }
+    .key-row input { flex: 1; min-width: 0; }
+
+    /* 固定フッター（保存アクション） */
+    .bottom-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-top: 1px solid var(--border);
+      padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-columns: 1fr 1.4fr;
+      gap: 10px;
+      z-index: 40;
+    }
+    .btn-save-one {
+      border: 1.5px solid var(--primary);
+      background: #fff;
+      color: var(--primary);
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-save-zip {
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(219, 39, 119, 0.25);
+    }
+    .btn-save-one:disabled, .btn-save-zip:disabled { opacity: 0.6; }
+    .btn-danger-outline {
+      border: 1px solid #fecaca;
+      background: #fef2f2;
+      color: #dc2626;
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .toast {
+      position: fixed;
+      top: 64px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0f172a;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+      max-width: 90vw;
+      text-align: center;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Clinic Insta Studio <span class="badge-pro">夫婦専用PWA</span></h1>
+  <div class="header-actions">
+    <button class="btn-mini" onclick="resetPreset()">テンプレ復元</button>
+  </div>
+</header>
+
+<div id="toast" class="toast">保存しました</div>
+
+<!-- プレビュー領域 -->
+<div class="preview-zone">
+  <div class="canvas-wrapper" id="canvasWrapper">
+    <canvas id="previewCanvas" width="1080" height="1920"></canvas>
+  </div>
+  <div class="warn" id="previewWarn"></div>
+  <div class="slide-nav" id="slideNav"></div>
+</div>
+
+<!-- 操作パネル -->
+<div class="container">
+  <div class="tabs">
+    <button class="tab-btn" data-tab="template" onclick="switchTab('template')">テンプレ</button>
+    <button class="tab-btn" data-tab="ai" onclick="switchTab('ai')">AI作成</button>
+    <button class="tab-btn active" data-tab="slide" onclick="switchTab('slide')">スライド</button>
+    <button class="tab-btn" data-tab="design" onclick="switchTab('design')">デザイン</button>
+    <button class="tab-btn" data-tab="brand" onclick="switchTab('brand')">ブランド</button>
+  </div>
+
+  <!-- TAB 0: テンプレート -->
+  <div id="tab-template" class="panel">
+    <div class="card">
+      <div class="card-title">投稿テンプレート（ワンタップで構成を切替）</div>
+      <div class="tpl-grid" id="tplGrid"></div>
+      <p class="hint">
+        ※ 切り替えると、今のスライド内容（文章・スライド写真）は上書きされます。<br>
+        ロゴ・医師写真・背景・テーマ・投稿サイズはそのまま引き継がれます。<br>
+        ※「〇〇」の部分はクリニックの情報に書き換えてください。
+      </p>
+    </div>
+  </div>
+
+  <!-- TAB: AI作成 -->
+  <div id="tab-ai" class="panel">
+    <div class="card">
+      <div class="card-title">AIで構成・文章をまとめて作成</div>
+      <div class="field">
+        <label>テーマ</label>
+        <input type="text" id="aiTheme" placeholder="例：MCTオイル" oninput="updateAiInput('theme', this.value)" />
+      </div>
+      <div class="field">
+        <label>ターゲット</label>
+        <input type="text" id="aiTarget" placeholder="例：30代女性" oninput="updateAiInput('target', this.value)" />
+      </div>
+      <div class="field">
+        <label>伝えたいこと</label>
+        <textarea id="aiMessage" style="min-height:64px" placeholder="例：朝のコーヒーに混ぜるだけで取り入れやすい" oninput="updateAiInput('message', this.value)"></textarea>
+      </div>
+      <div class="field two-col">
+        <div>
+          <label>構成タイプ</label>
+          <select id="aiStructure" onchange="updateAiInput('structure', this.value)"></select>
+        </div>
+        <div>
+          <label>枚数</label>
+          <select id="aiCount" onchange="updateAiInput('count', Number(this.value))">
+            <option value="5">5枚</option>
+            <option value="6">6枚</option>
+            <option value="7">7枚</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" id="btnAiGenerate" onclick="generateDraft('ai')">✨ AIで生成</button>
+        <button class="btn-secondary" id="btnOfflineGenerate" onclick="generateDraft('offline')">⚡ オフライン作成</button>
+      </div>
+      <p class="ai-status" id="aiStatus"></p>
+    </div>
+
+    <div class="card" id="draftCard" style="display:none">
+      <div class="card-title"><span id="draftTitle">生成結果</span></div>
+      <ul class="draft-list" id="draftList"></ul>
+      <button class="btn-primary" style="width:100%" onclick="applyDraft()">この内容をスライドに反映</button>
+      <p class="hint">
+        反映後も「スライド」タブで1枚ずつ修正できます。<br>
+        ※ AIの文章には誤りが含まれることがあります。投稿前に必ず医師が内容を確認してください。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">投稿キャプション＆ハッシュタグ</div>
+      <div class="field">
+        <label>キャプション</label>
+        <textarea id="inCaption" style="min-height:180px" placeholder="生成するとここにキャプションが入ります（手入力も可）" oninput="updateCaptionField('caption', this.value)"></textarea>
+      </div>
+      <div class="field">
+        <label>ハッシュタグ</label>
+        <textarea id="inHashtags" style="min-height:64px" placeholder="#美容皮膚科 #インナーケア" oninput="updateCaptionField('hashtags', this.value)"></textarea>
+      </div>
+      <div class="copy-row">
+        <button class="btn-mini" onclick="copyCaption('caption')">📋 キャプション</button>
+        <button class="btn-mini" onclick="copyCaption('hashtags')">📋 ハッシュタグ</button>
+        <button class="btn-mini strong" onclick="copyCaption('all')">📋 まとめてコピー</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <details id="aiSettingsBox">
+        <summary>⚙️ AI設定（APIキー） <span class="key-badge" id="aiKeyBadge">未設定</span></summary>
+        <div class="field">
+          <label>使用するAI</label>
+          <div class="seg-grid" style="grid-template-columns:repeat(2,1fr)">
+            <div class="seg-btn" data-provider="openai" onclick="setAiProvider('openai')"><strong>OpenAI</strong><span>ChatGPT API</span></div>
+            <div class="seg-btn" data-provider="gemini" onclick="setAiProvider('gemini')"><strong>Gemini</strong><span>Google AI Studio</span></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>APIキー</label>
+          <div class="key-row">
+            <input type="password" id="aiKey" autocomplete="off" autocapitalize="off" spellcheck="false" />
+            <button class="btn-mini" onclick="toggleKeyVisibility()">表示</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>モデル名（空欄なら既定値）</label>
+          <input type="text" id="aiModel" autocomplete="off" autocapitalize="off" spellcheck="false" />
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" onclick="saveAiKey()">保存</button>
+          <button class="btn-secondary" onclick="deleteAiKey()">キーを削除</button>
+        </div>
+        <p class="hint">
+          ※ APIキーはこの端末のブラウザ内（localStorage）にのみ保存され、生成時にOpenAI／Googleへ直接送られる以外には使われません。<br>
+          ※ ブラウザ内に暗号化せず保存されるため、共有端末では使わないでください。各サービスの管理画面で月額の利用上限を設定しておくと安心です。<br>
+          ※ キーをGitHubのコードに書き込まないでください（公開されます）。
+        </p>
+      </details>
+    </div>
+  </div>
+
+  <!-- TAB 1: スライド編集 -->
+  <div id="tab-slide" class="panel active">
+    <div class="card">
+      <div class="card-title">
+        <span id="currentSlideLabel">スライド 1 / 5 の編集</span>
+        <button class="btn-danger-outline" onclick="deleteCurrentSlide()">この枚数を削除</button>
+      </div>
+      <div class="field">
+        <label>スライド種別（レイアウト自動調整）</label>
+        <select id="inRole" onchange="updateSlideField('role', this.value)">
+          <option value="cover">カバー（表紙・医師写真表示）</option>
+          <option value="content">本文スライド（朝・昼・夜・解説など）</option>
+          <option value="cta">CTA（保存・予約誘導・医師写真表示）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>上部バッジ / ラベル（例：COVER / MORNING / POINT 01）</label>
+        <input type="text" id="inBadge" oninput="updateSlideField('badge', this.value)" />
+      </div>
+      <div class="field">
+        <label>メインタイトル（改行で2行表示）</label>
+        <textarea id="inTitle" style="min-height:64px" oninput="updateSlideField('title', this.value)"></textarea>
+      </div>
+      <div class="field">
+        <label>サブタイトル / リード文</label>
+        <input type="text" id="inSubtitle" oninput="updateSlideField('subtitle', this.value)" />
+      </div>
+      <div class="field">
+        <label>本文（箇条書きや改行がそのまま反映されます）</label>
+        <textarea id="inBody" oninput="updateSlideField('body', this.value)"></textarea>
+      </div>
+      <div class="field">
+        <label>CTAボタン文言（空欄なら非表示）</label>
+        <input type="text" id="inCta" placeholder="例：保存して見返す 📌" oninput="updateSlideField('cta', this.value)" />
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">このスライドの写真（症例写真など）</div>
+      <div class="field">
+        <div class="seg-grid">
+          <div class="seg-btn" data-mode="none" onclick="setPhotoMode('none')">
+            <strong>なし</strong><span>文字のみ</span>
+          </div>
+          <div class="seg-btn" data-mode="single" onclick="setPhotoMode('single')">
+            <strong>写真1枚</strong><span>症例・院内など</span>
+          </div>
+          <div class="seg-btn" data-mode="ba" onclick="setPhotoMode('ba')">
+            <strong>Before/After</strong><span>2枚を比較</span>
+          </div>
+        </div>
+      </div>
+      <div id="photoRows"></div>
+      <div class="field" id="photoNoteField">
+        <label>写真の注記（施術内容・費用・リスクなど）</label>
+        <input type="text" id="inPhotoNote" placeholder="例：施術：〇〇／費用：〇〇円（税込）／リスク：赤み・腫れ等" oninput="updateSlideField('photoNote', this.value)" />
+      </div>
+      <p class="hint" id="photoHint">
+        ※ 写真は端末内（ブラウザのIndexedDB）にのみ保存され、サーバーには送信されません。<br>
+        ※ 症例写真を掲載する際は、医療広告ガイドラインに沿って施術内容・費用・主なリスク・副作用を併記してください。
+      </p>
+    </div>
+  </div>
+
+  <!-- TAB 2: サイズ・テーマ -->
+  <div id="tab-design" class="panel">
+    <div class="card">
+      <div class="card-title">投稿サイズ（ワンタップ切替）</div>
+      <div class="seg-grid">
+        <div class="seg-btn active" data-format="reel" onclick="setFormat('reel')">
+          <strong>リール</strong><span>1080×1920</span>
+        </div>
+        <div class="seg-btn" data-format="story" onclick="setFormat('story')">
+          <strong>ストーリー</strong><span>1080×1920</span>
+        </div>
+        <div class="seg-btn" data-format="feed" onclick="setFormat('feed')">
+          <strong>フィード</strong><span>1080×1350</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">カラーテーマ（4種）</div>
+      <div class="theme-grid">
+        <button class="theme-btn active" data-theme="sakura" onclick="setTheme('sakura')">
+          <span class="swatch" style="background:linear-gradient(135deg,#fff1f2,#fbcfe8)"></span>桜ピンク
+        </button>
+        <button class="theme-btn" data-theme="blue" onclick="setTheme('blue')">
+          <span class="swatch" style="background:linear-gradient(135deg,#f0f9ff,#bae6fd)"></span>爽やかブルー
+        </button>
+        <button class="theme-btn" data-theme="orange" onclick="setTheme('orange')">
+          <span class="swatch" style="background:linear-gradient(135deg,#fff7ed,#fed7aa)"></span>温かみオレンジ
+        </button>
+        <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')">
+          <span class="swatch" style="background:linear-gradient(135deg,#1e293b,#0f172a)"></span>ダーク
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: ロゴ・医師・画像 -->
+  <div id="tab-brand" class="panel">
+    <div class="card">
+      <div class="card-title">クリニック共通テキスト（全スライド反映）</div>
+      <div class="field">
+        <label>Instagram ハンドル名</label>
+        <input type="text" id="inHandle" placeholder="@beauty_skin_clinic" oninput="updateBrand('handle', this.value)" />
+      </div>
+      <div class="field">
+        <label>タグライン / クリニック肩書き</label>
+        <input type="text" id="inTagline" placeholder="美容皮膚科医が教えるインナーケア" oninput="updateBrand('tagline', this.value)" />
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">画像アップロード（端末内処理・サーバー送信なし）</div>
+
+      <div class="upload-row">
+        <div class="upload-info">
+          <strong>クリニックロゴ（PNG推奨）</strong>
+          <small id="statusLogo">未設定（テキスト表示）</small>
+        </div>
+        <div class="upload-actions">
+          <label class="file-label">選択<input type="file" accept="image/*" onchange="handleImageUpload('logo', this)" /></label>
+          <button class="btn-clear" onclick="clearImage('logo')">解除</button>
+        </div>
+      </div>
+
+      <div class="upload-row">
+        <div class="upload-info">
+          <strong>医師写真（カバー＆CTAに表示）</strong>
+          <small id="statusDoctor">未設定</small>
+        </div>
+        <div class="upload-actions">
+          <label class="file-label">選択<input type="file" accept="image/*" onchange="handleImageUpload('doctor', this)" /></label>
+          <button class="btn-clear" onclick="clearImage('doctor')">解除</button>
+        </div>
+      </div>
+
+      <div class="upload-row">
+        <div class="upload-info">
+          <strong>背景画像（全スライドに薄く合成）</strong>
+          <small id="statusBg">未設定</small>
+        </div>
+        <div class="upload-actions">
+          <label class="file-label">選択<input type="file" accept="image/*" onchange="handleImageUpload('bg', this)" /></label>
+          <button class="btn-clear" onclick="clearImage('bg')">解除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 下部固定保存バー -->
+<div class="bottom-bar">
+  <button class="btn-save-one" id="btnPng" onclick="downloadCurrentPNG()">この1枚をPNG保存</button>
+  <button class="btn-save-zip" id="btnZip" onclick="downloadAllZIP()">全5枚をZIP一括保存</button>
+</div>
+
+<script>
+const STORAGE_KEY = "clinic_insta_studio_v1";
+const MAX_SLIDES = 10;
+
+// ==========================================
+// カラーテーマ定義（4種）
+// ==========================================
+const THEMES = {
+  sakura: {
+    bgTop: "#fff5f7", bgBottom: "#ffe4e6", cardBg: "rgba(255, 255, 255, 0.92)",
+    primary: "#be185d", accent: "#f472b6", ink: "#1e293b", sub: "#64748b",
+    badgeBg: "#fce7f3", badgeInk: "#9d174d", ctaBg: "#be185d", ctaInk: "#ffffff", border: "#fbcfe8"
+  },
+  blue: {
+    bgTop: "#f0f9ff", bgBottom: "#e0f2fe", cardBg: "rgba(255, 255, 255, 0.94)",
+    primary: "#0369a1", accent: "#38bdf8", ink: "#0f172a", sub: "#475569",
+    badgeBg: "#e0f2fe", badgeInk: "#075985", ctaBg: "#0284c7", ctaInk: "#ffffff", border: "#bae6fd"
+  },
+  orange: {
+    bgTop: "#fffbeb", bgBottom: "#ffedd5", cardBg: "rgba(255, 255, 255, 0.93)",
+    primary: "#c2410c", accent: "#fb923c", ink: "#1c1917", sub: "#57534e",
+    badgeBg: "#ffedd5", badgeInk: "#9a3412", ctaBg: "#ea580c", ctaInk: "#ffffff", border: "#fed7aa"
+  },
+  dark: {
+    bgTop: "#0f172a", bgBottom: "#1e293b", cardBg: "rgba(30, 41, 59, 0.92)",
+    primary: "#f8fafc", accent: "#d4af37", /* シャンパンゴールド */ ink: "#f1f5f9", sub: "#94a3b8",
+    badgeBg: "rgba(212, 175, 55, 0.18)", badgeInk: "#fde68a", ctaBg: "#d4af37", ctaInk: "#0f172a",
+    border: "rgba(212, 175, 55, 0.35)"
+  }
+};
+
+// ==========================================
+// 投稿テンプレート（6種）
+// sl(種別, バッジ, タイトル, サブ, 本文, CTA, 追加設定)
+// ==========================================
+const sl = (role, badge, title, subtitle, body, cta = "", extra = {}) =>
+  ({ role, badge, title, subtitle, body, cta, ...extra });
+
+const CASE_NOTE = "施術：〇〇治療（〇回）／費用：1回〇〇円（税込）／主なリスク：赤み・腫れ・内出血等";
+
+const TEMPLATES = {
+  beauty: {
+    name: "美容コラム", emoji: "🌸", desc: "インナーケア・美肌習慣の解説",
+    slides: [
+      sl("cover", "DOCTOR'S COLUMN", "血糖値スパイクを防ぐ\n1日の美肌ルーティン",
+        "MCTオイル × 桑の葉茶で無理なく続くゆるロカボ",
+        "✔ 朝のエネルギーチャージ\n✔ 昼の糖質吸収ケア\n✔ 夜の消化リセット\n\n美容皮膚科医が実践する3ステップ",
+        "スワイプして1日の流れを見る →"),
+      sl("content", "MORNING｜朝", "朝のコーヒーに\nMCTオイルを5〜10g",
+        "素早くエネルギーになり、日中の集中力と代謝をサポート",
+        "・最初は小さじ1（約5g）からスタート\n・無味無臭なのでコーヒーや紅茶に混ぜるだけ\n・血糖値を上げずに午前中の空腹感を防止"),
+      sl("content", "LUNCH｜昼", "糖質を摂る食事の直前に\n「桑の葉茶」を1杯",
+        "桑の葉特有の成分DNJが糖質の吸収をゆるやかに",
+        "・食前〜食中に150〜200ml飲むのがポイント\n・玄米100g＋主菜のバランス食と相性◎\n・食後の眠気や肌の糖化リスクをケア"),
+      sl("content", "NIGHT｜夜", "夜は脂質を控えめにして\n温野菜＋良質なたんぱく質",
+        "寝ている間の肌修復と腸内環境を整える",
+        "・体重×1.2〜1.5gのたんぱく質を意識\n・発酵食品＋食物繊維で翌朝すっきり\n・水分は1日1.5〜2Lを目安にこまめに補給"),
+      sl("cta", "SUMMARY & SAVE", "「朝MCT・昼桑の葉・夜ケア」\nまずは3日間お試しください",
+        "※服薬中・妊娠授乳中の方は事前に医師へご相談ください",
+        "後から見返せるように\n右下の保存ボタンからストックがおすすめです。\n\nご質問はコメント・DMでお気軽にどうぞ！",
+        "保存して明日から実践する 📌")
+    ]
+  },
+
+  diet: {
+    name: "ダイエットコラム", emoji: "🥗", desc: "PFC・血糖値・医療ダイエット解説",
+    slides: [
+      sl("cover", "DIET COLUMN", "リバウンドしない\n医師が教えるダイエットの基本",
+        "PFCバランス × 血糖値コントロールで無理なく続ける",
+        "✔ PFCバランスの考え方\n✔ 血糖値を急上昇させない食べ方\n✔ 医療ダイエットという選択肢\n\n美容皮膚科医が解説します",
+        "スワイプして読む →"),
+      sl("content", "POINT 01｜PFC", "まずは「PFCバランス」を\n整えることから",
+        "P＝たんぱく質 / F＝脂質 / C＝炭水化物",
+        "・目安はP 15〜20% / F 20〜25% / C 50〜60%\n・たんぱく質は毎食「手のひら1枚分」\n・極端な糖質ゼロは筋肉量低下の原因に"),
+      sl("content", "POINT 02｜血糖値", "血糖値を急上昇させない\n「食べる順番」",
+        "野菜 → たんぱく質 → 炭水化物 の順がおすすめ",
+        "・食物繊維を先に摂って糖の吸収をゆるやかに\n・早食いを避け、20分以上かけて食べる\n・食後10〜15分の軽い散歩も効果的"),
+      sl("content", "POINT 03｜医療ダイエット", "自己流で難しいときは\n医療ダイエットという選択肢",
+        "医師の診察のもと、体質や既往歴に合わせて適応を判断します",
+        "・内服薬・注射薬・栄養指導などを組み合わせ\n・副作用（吐き気・便秘など）の説明を受けてから開始\n・自由診療のため費用は事前にご確認ください"),
+      sl("content", "POINT 04｜習慣", "体重より「習慣」を\n記録しよう",
+        "睡眠・水分・歩数がダイエットの土台",
+        "・睡眠は7時間前後を目標に\n・水分は1日1.5〜2Lをこまめに\n・週1回、同じ条件で体重と体脂肪を測る"),
+      sl("cta", "SUMMARY", "食べ方を整えて\n一生ものの体づくりを",
+        "※持病・服薬中の方は自己判断せず医師にご相談ください",
+        "医療ダイエットのご相談は\nプロフィールのリンクから\nカウンセリング予約ができます。",
+        "保存してあとで見返す 📌")
+    ]
+  },
+
+  case: {
+    name: "症例紹介", emoji: "📷", desc: "Before / After・施術内容・リスク",
+    slides: [
+      sl("cover", "CASE REPORT", "〇〇のお悩みに\n〇〇治療を行った症例",
+        "30代女性｜治療回数〇回・経過〇ヶ月", "",
+        "スワイプして詳細を見る →",
+        { photoMode: "ba", photoNote: CASE_NOTE }),
+      sl("content", "01｜お悩み", "患者様のお悩み",
+        "「〇〇が気になって、メイクでも隠しきれない」",
+        "・数年前から〇〇が目立つようになった\n・セルフケアでは変化を感じにくい\n・ダウンタイムが短い治療を希望"),
+      sl("content", "02｜施術内容", "〇〇治療を\n〇週間おきに〇回",
+        "肌状態を診察したうえで出力・回数を調整",
+        "・施術時間：約〇分\n・麻酔：麻酔クリーム使用\n・費用：1回 〇〇円（税込）\n・〇回コース：〇〇円（税込）"),
+      sl("content", "03｜経過", "Before / After\n（〇回目終了から〇ヶ月）", "",
+        "〇〇が目立ちにくくなりました。\n※効果には個人差があります",
+        "", { photoMode: "ba", photoNote: CASE_NOTE }),
+      sl("content", "04｜ダウンタイム・リスク", "ダウンタイムと\n副作用・リスクについて",
+        "施術前に必ず医師がご説明いたします",
+        "・赤み・腫れ：数日〜1週間程度\n・まれに内出血・色素沈着が起こる場合があります\n・効果には個人差があり、複数回の施術が\n　必要な場合があります"),
+      sl("cta", "CONSULTATION", "同じお悩みの方は\nお気軽にご相談ください",
+        "※掲載症例は患者様の同意を得て掲載しています",
+        "カウンセリングでは\n肌状態を確認したうえで\nあなたに合う治療をご提案します。",
+        "プロフィールから予約する 📅")
+    ]
+  },
+
+  doctor: {
+    name: "医師紹介", emoji: "👩‍⚕️", desc: "経歴・得意な施術・診療への想い",
+    slides: [
+      sl("cover", "DOCTOR PROFILE", "はじめまして\n院長の〇〇です",
+        "美容皮膚科医｜〇〇クリニック 院長",
+        "✔ 経歴・資格\n✔ 得意な施術\n✔ 診療で大切にしていること",
+        "スワイプして読む →"),
+      sl("content", "PROFILE｜経歴", "経歴・資格",
+        "皮膚科・美容皮膚科で〇年以上の診療経験",
+        "・〇〇大学医学部 卒業\n・〇〇病院 皮膚科 勤務\n・〇〇クリニック 院長 就任\n・所属学会：〇〇学会"),
+      sl("content", "SPECIALTY｜得意な施術", "得意な施術",
+        "肌の悩みに合わせて治療を組み合わせます",
+        "・シミ・肝斑治療（レーザー・内服）\n・ニキビ・ニキビ跡治療\n・エイジングケア（注入・HIFUなど）\n・インナーケア（栄養・食事指導）"),
+      sl("content", "MESSAGE｜想い", "診療で大切にしている\nこと",
+        "「必要な治療を、必要な分だけ」",
+        "無理におすすめすることはありません。\nメリットだけでなくリスクや\nダウンタイムも丁寧にご説明し、\n納得して選べる診療を心がけています。"),
+      sl("cta", "FOLLOW", "お肌の悩み、\nまずはご相談ください", "",
+        "Instagramでは\n美容とインナーケアの情報を\n発信しています。",
+        "フォローして最新情報を見る ✨")
+    ]
+  },
+
+  faq: {
+    name: "FAQ", emoji: "💬", desc: "よくある質問 Q&A 3問",
+    slides: [
+      sl("cover", "FAQ", "よくあるご質問に\n医師がお答えします",
+        "テーマ：〇〇治療",
+        "Q1. 痛みはありますか？\nQ2. ダウンタイムは？\nQ3. 何回くらい必要？",
+        "スワイプして答えを見る →"),
+      sl("content", "Q1", "Q. 痛みは\nありますか？",
+        "A. 輪ゴムで弾かれる程度の痛みです",
+        "・麻酔クリームで痛みを和らげることができます\n・痛みの感じ方には個人差があります\n・不安な方は出力を調整しますのでご相談ください"),
+      sl("content", "Q2", "Q. ダウンタイムは\nどれくらい？",
+        "A. 赤みは数時間〜数日で落ち着くことが多いです",
+        "・当日からメイク可能な施術もあります\n・まれに内出血・腫れが出ることがあります\n・施術後は紫外線対策と保湿を徹底しましょう"),
+      sl("content", "Q3", "Q. 何回くらい\n通えばいいですか？",
+        "A. 目安は〇〜〇回です",
+        "・〇週間ごとの施術がおすすめ\n・肌状態により回数は異なります\n・カウンセリング時に治療計画をご提案します"),
+      sl("cta", "SUMMARY", "そのほかのご質問も\nお気軽にどうぞ",
+        "※効果・ダウンタイムには個人差があります",
+        "コメントやDMでいただいたご質問は\n今後の投稿でお答えしていきます。",
+        "保存して見返す 📌")
+    ]
+  },
+
+  campaign: {
+    name: "キャンペーン告知", emoji: "🎁", desc: "特典・対象施術・料金・予約導線",
+    slides: [
+      sl("cover", "CAMPAIGN", "〇月限定\n〇〇キャンペーン",
+        "期間：〇月〇日（〇）〜〇月〇日（〇）",
+        "✔ 特典内容\n✔ 対象施術・おすすめな方\n✔ 料金・期間\n✔ ご予約方法",
+        "スワイプして詳細を見る →"),
+      sl("content", "BENEFIT｜特典", "キャンペーン特典",
+        "期間中にご来院の方が対象です",
+        "・〇〇治療 初回 〇〇円（税込）\n・ホームケア用サンプルプレゼント\n・カウンセリング料 〇〇円 → 0円"),
+      sl("content", "TARGET｜対象施術", "対象施術と\nこんな方におすすめ",
+        "対象：〇〇治療／〇〇治療",
+        "・〇〇が気になり始めた方\n・ダウンタイムが少ない治療をお探しの方\n・はじめて美容医療を受ける方"),
+      sl("content", "PRICE｜料金・期間", "料金・期間",
+        "表示価格はすべて税込です",
+        "・〇〇治療：通常 〇〇円 → 〇〇円\n・〇〇治療：通常 〇〇円 → 〇〇円\n・期間：〇月〇日〜〇月〇日\n・他の割引との併用はできません"),
+      sl("content", "NOTICE｜注意事項", "施術前に\nご確認ください",
+        "主なリスク・副作用",
+        "・赤み・腫れ・内出血などが生じる場合があります\n・効果には個人差があります\n・診察の結果、施術をお受けいただけない\n　場合があります"),
+      sl("cta", "RESERVATION", "ご予約は\nプロフィールのリンクから",
+        "※枠に限りがあるため、お早めのご予約をおすすめします",
+        "Web予約・お電話・DMで\n受け付けています。\n\nご不明点はお気軽にご相談ください。",
+        "今すぐ予約する 📅")
+    ]
+  }
+};
+
+function normalizeSlide(s) {
+  return {
+    role: "content", badge: "", title: "", subtitle: "", body: "", cta: "",
+    photoMode: "none", photoNote: "",
+    ...s,
+    photos: { main: null, before: null, after: null, ...((s && s.photos) || {}) }
+  };
+}
+
+function templateSlides(key) {
+  const tpl = TEMPLATES[key] || TEMPLATES.beauty;
+  return JSON.parse(JSON.stringify(tpl.slides)).map(normalizeSlide);
+}
+
+const DEFAULT_STATE = {
+  format: "reel", // reel | story | feed
+  theme: "sakura",
+  template: "beauty",
+  handle: "@clinic_beauty_official",
+  tagline: "美容皮膚科医のインナーケア習慣",
+  images: { logo: null, doctor: null, bg: null },
+  slides: templateSlides("beauty"),
+  ai: { theme: "", target: "", message: "", structure: "auto", count: 5 },
+  aiDraft: null,
+  caption: "",
+  hashtags: ""
+};
+
+let state = loadState();
+let currentSlideIndex = 0;
+let isExporting = false;
+const loadedImgObjects = { logo: null, doctor: null, bg: null };
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const merged = {
+        ...DEFAULT_STATE, ...parsed,
+        images: { ...DEFAULT_STATE.images, ...(parsed.images || {}) },
+        ai: { ...DEFAULT_STATE.ai, ...(parsed.ai || {}) }
+      };
+      merged.slides = (Array.isArray(merged.slides) && merged.slides.length ? merged.slides : templateSlides("beauty")).map(normalizeSlide);
+      return merged;
+    }
+  } catch (e) {}
+  return JSON.parse(JSON.stringify(DEFAULT_STATE));
+}
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    // 容量オーバー時はロゴ等の画像を除いて保存（テキストは必ず残す）
+    try {
+      const withoutImages = { ...state, images: { logo: null, doctor: null, bg: null } };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(withoutImages));
+      showToast("容量不足のため画像は保存できませんでした");
+    } catch (e2) {}
+  }
+}
+
+let toastTimer;
+function showToast(text) {
+  const el = document.getElementById("toast");
+  el.textContent = text;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+// ==========================================
+// スライド写真ストア（IndexedDB：localStorageの容量制限を回避）
+// ==========================================
+const PhotoDB = (() => {
+  const mem = new Map();
+  let dbPromise = null;
+  let warned = false;
+
+  function open() {
+    if (!dbPromise) {
+      dbPromise = new Promise((resolve, reject) => {
+        if (!("indexedDB" in window)) return reject(new Error("no idb"));
+        const req = indexedDB.open("clinic_insta_studio", 1);
+        req.onupgradeneeded = () => req.result.createObjectStore("photos");
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      }).catch(() => null);
+    }
+    return dbPromise;
+  }
+  function warnMemOnly() {
+    if (warned) return;
+    warned = true;
+    showToast("この端末では写真を保存できません（再読み込みで消えます）");
+  }
+  async function run(mode, fn) {
+    const db = await open();
+    if (!db) return undefined;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("photos", mode);
+      const req = fn(tx.objectStore("photos"));
+      tx.oncomplete = () => resolve(req.result);
+      tx.onerror = tx.onabort = () => reject(tx.error);
+    });
+  }
+  return {
+    async put(id, data) {
+      if (!(await open())) { warnMemOnly(); mem.set(id, data); return; }
+      return run("readwrite", s => s.put(data, id));
+    },
+    async get(id) {
+      if (!(await open())) return mem.get(id);
+      return run("readonly", s => s.get(id));
+    },
+    async del(id) {
+      if (!(await open())) { mem.delete(id); return; }
+      return run("readwrite", s => s.delete(id));
+    },
+    async keys() {
+      if (!(await open())) return [...mem.keys()];
+      return run("readonly", s => s.getAllKeys());
+    }
+  };
+})();
+
+const photoCache = {};       // id -> HTMLImageElement
+const photoLoading = {};     // id -> Promise
+const photoMissing = new Set();
+
+function dataUrlToImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function loadPhoto(id) {
+  if (!id) return Promise.resolve(null);
+  if (photoCache[id]) return Promise.resolve(photoCache[id]);
+  if (photoLoading[id]) return photoLoading[id];
+  photoLoading[id] = PhotoDB.get(id)
+    .then(data => (data ? dataUrlToImage(data) : null))
+    .then(img => {
+      if (img) photoCache[id] = img; else photoMissing.add(id);
+      return img;
+    })
+    .catch(() => { photoMissing.add(id); return null; })
+    .finally(() => { delete photoLoading[id]; });
+  return photoLoading[id];
+}
+
+function referencedPhotoIds() {
+  return state.slides.flatMap(s => Object.values(s.photos || {})).filter(Boolean);
+}
+
+function ensureAllPhotos() {
+  return Promise.all(referencedPhotoIds().map(loadPhoto));
+}
+
+// どのスライドからも参照されなくなった写真を削除
+async function gcPhotos() {
+  try {
+    const keep = new Set(referencedPhotoIds());
+    const keys = await PhotoDB.keys();
+    await Promise.all((keys || []).filter(k => !keep.has(k)).map(k => {
+      delete photoCache[k];
+      return PhotoDB.del(k);
+    }));
+  } catch (e) {}
+}
+
+// 描画時に写真を取得（未ロードなら非同期ロード後に再描画）
+function getSlidePhoto(slide, slot) {
+  const id = slide.photos && slide.photos[slot];
+  if (!id) return null;
+  if (photoCache[id]) return photoCache[id];
+  if (!photoMissing.has(id)) {
+    loadPhoto(id).then(img => { if (img) { requestPreview(); renderPhotoRows(); } });
+  }
+  return null;
+}
+
+// ==========================================
+// フォント読み込み（Canvasは未使用フォントを自動で読み込まないため明示的にロード）
+// ==========================================
+function collectSlideText() {
+  return [state.handle, state.tagline, ...state.slides.flatMap(s =>
+    [s.badge, s.title, s.subtitle, s.body, s.cta, s.photoNote])].join("") +
+    "0123456789/ BEFOREAFTER写真を追加スライド編集から";
+}
+function ensureFonts() {
+  if (!document.fonts || !document.fonts.load) return Promise.resolve();
+  const all = collectSlideText();
+  const titles = state.slides.map(s => s.title || "").join("");
+  return Promise.all([
+    document.fonts.load("400 36px 'Noto Sans JP'", all),
+    document.fonts.load("500 36px 'Noto Sans JP'", all),
+    document.fonts.load("700 36px 'Noto Sans JP'", all),
+    document.fonts.load("700 62px 'Shippori Mincho'", titles || "あ")
+  ].map(p => p.catch(() => {})));
+}
+let fontTimer;
+function scheduleFontRefresh() {
+  clearTimeout(fontTimer);
+  fontTimer = setTimeout(() => ensureFonts().then(requestPreview), 350);
+}
+
+// 画像DataURLをImageオブジェクトに事前ロード（ロゴ・医師・背景）
+function preloadStoredImages() {
+  ["logo", "doctor", "bg"].forEach(key => {
+    const dataUrl = state.images[key];
+    const statusEl = document.getElementById("status" + key.charAt(0).toUpperCase() + key.slice(1));
+    if (dataUrl) {
+      const img = new Image();
+      img.onload = () => { loadedImgObjects[key] = img; requestPreview(); };
+      img.src = dataUrl;
+      if (statusEl) statusEl.textContent = "設定済み ✓";
+    } else {
+      loadedImgObjects[key] = null;
+      if (statusEl) statusEl.textContent = key === "logo" ? "未設定（テキスト表示）" : "未設定";
+    }
+  });
+}
+
+// ==========================================
+// UI 操作
+// ==========================================
+function switchTab(tabName) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === tabName));
+  document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "tab-" + tabName));
+}
+
+function setFormat(fmt) {
+  state.format = fmt;
+  document.querySelectorAll("[data-format]").forEach(b => b.classList.toggle("active", b.dataset.format === fmt));
+  saveState();
+  renderPreview();
+}
+
+function setTheme(themeKey) {
+  state.theme = themeKey;
+  document.querySelectorAll("[data-theme]").forEach(b => b.classList.toggle("active", b.dataset.theme === themeKey));
+  saveState();
+  renderPreview();
+}
+
+// テンプレート一覧
+function renderTemplateGrid() {
+  const grid = document.getElementById("tplGrid");
+  grid.innerHTML = "";
+  Object.entries(TEMPLATES).forEach(([key, tpl]) => {
+    const btn = document.createElement("button");
+    btn.className = "tpl-btn" + (state.template === key ? " active" : "");
+    btn.innerHTML =
+      `<span class="tpl-emoji">${tpl.emoji}</span>` +
+      `<strong>${tpl.name}</strong>` +
+      `<small>${tpl.desc}</small>` +
+      `<span class="tpl-count">${tpl.slides.length}枚構成${state.template === key ? "・使用中" : ""}</span>`;
+    btn.onclick = () => applyTemplate(key);
+    grid.appendChild(btn);
+  });
+}
+
+function applyTemplate(key) {
+  const tpl = TEMPLATES[key];
+  if (!tpl) return;
+  if (!confirm(`「${tpl.name}」テンプレート（${tpl.slides.length}枚）に切り替えますか？\n現在のスライド内容とスライド写真は上書きされます。`)) return;
+  state.template = key;
+  state.slides = templateSlides(key);
+  currentSlideIndex = 0;
+  saveState();
+  gcPhotos();
+  refreshAll();
+  switchTab("slide");
+  showToast(`「${tpl.name}」を適用しました`);
+}
+
+function renderSlideNav() {
+  const nav = document.getElementById("slideNav");
+  nav.innerHTML = "";
+  state.slides.forEach((s, idx) => {
+    const btn = document.createElement("button");
+    btn.className = "slide-pill" + (idx === currentSlideIndex ? " active" : "");
+    btn.textContent = `${idx + 1}枚目${s.photoMode && s.photoMode !== "none" ? " 📷" : ""}`;
+    btn.onclick = () => {
+      currentSlideIndex = idx;
+      syncFormWithCurrentSlide();
+      renderSlideNav();
+      renderPreview();
+    };
+    nav.appendChild(btn);
+  });
+
+  if (state.slides.length < MAX_SLIDES) {
+    const addBtn = document.createElement("button");
+    addBtn.className = "slide-add-btn";
+    addBtn.textContent = "＋ 追加";
+    addBtn.onclick = addSlide;
+    nav.appendChild(addBtn);
+  }
+
+  document.getElementById("btnZip").textContent = `全${state.slides.length}枚をZIP一括保存`;
+}
+
+// スライド追加（最大10枚・CTAの手前に挿入）
+function addSlide() {
+  if (state.slides.length >= MAX_SLIDES) return;
+  const newSlide = normalizeSlide({
+    role: "content",
+    badge: `POINT ${String(state.slides.length).padStart(2, "0")}`,
+    title: "新しいスライドの\n見出しを入力",
+    subtitle: "ここにポイントの要約が入ります",
+    body: "・解説テキスト1\n・解説テキスト2\n・解説テキスト3",
+    cta: ""
+  });
+  const insertPos = state.slides.length > 1 ? state.slides.length - 1 : state.slides.length;
+  state.slides.splice(insertPos, 0, newSlide);
+  currentSlideIndex = insertPos;
+  saveState();
+  refreshAll();
+  showToast(`スライドを追加しました（全${state.slides.length}枚）`);
+}
+
+// スライド削除（最小1枚）
+function deleteCurrentSlide() {
+  if (state.slides.length <= 1) {
+    showToast("これ以上削除できません");
+    return;
+  }
+  state.slides.splice(currentSlideIndex, 1);
+  if (currentSlideIndex >= state.slides.length) currentSlideIndex = state.slides.length - 1;
+  saveState();
+  gcPhotos();
+  refreshAll();
+  showToast("スライドを削除しました");
+}
+
+function syncFormWithCurrentSlide() {
+  const s = state.slides[currentSlideIndex];
+  document.getElementById("currentSlideLabel").textContent = `スライド ${currentSlideIndex + 1} / ${state.slides.length} の編集`;
+  document.getElementById("inRole").value = s.role || "content";
+  document.getElementById("inBadge").value = s.badge || "";
+  document.getElementById("inTitle").value = s.title || "";
+  document.getElementById("inSubtitle").value = s.subtitle || "";
+  document.getElementById("inBody").value = s.body || "";
+  document.getElementById("inCta").value = s.cta || "";
+  document.getElementById("inHandle").value = state.handle || "";
+  document.getElementById("inTagline").value = state.tagline || "";
+
+  document.querySelectorAll("[data-format]").forEach(b => b.classList.toggle("active", b.dataset.format === state.format));
+  document.querySelectorAll("[data-theme]").forEach(b => b.classList.toggle("active", b.dataset.theme === state.theme));
+  syncPhotoUI();
+}
+
+function updateSlideField(field, value) {
+  state.slides[currentSlideIndex][field] = value;
+  saveState();
+  renderPreview();
+  scheduleFontRefresh();
+}
+
+function updateBrand(field, value) {
+  state[field] = value;
+  saveState();
+  renderPreview();
+  scheduleFontRefresh();
+}
+
+// ==========================================
+// スライド写真（1枚 / Before・After）
+// ==========================================
+const PHOTO_SLOTS = { none: [], single: ["main"], ba: ["before", "after"] };
+const PHOTO_LABELS = { main: "写真", before: "Before 写真", after: "After 写真" };
+
+function setPhotoMode(mode) {
+  state.slides[currentSlideIndex].photoMode = mode;
+  saveState();
+  syncPhotoUI();
+  renderSlideNav();
+  renderPreview();
+}
+
+function syncPhotoUI() {
+  const s = state.slides[currentSlideIndex];
+  const mode = s.photoMode || "none";
+  document.querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
+  document.getElementById("photoNoteField").style.display = mode === "none" ? "none" : "";
+  document.getElementById("inPhotoNote").value = s.photoNote || "";
+  renderPhotoRows();
+}
+
+function renderPhotoRows() {
+  const wrap = document.getElementById("photoRows");
+  const s = state.slides[currentSlideIndex];
+  wrap.innerHTML = "";
+  PHOTO_SLOTS[s.photoMode || "none"].forEach(slot => {
+    const id = s.photos[slot];
+    const img = id ? photoCache[id] : null;
+    const row = document.createElement("div");
+    row.className = "upload-row";
+    row.innerHTML =
+      `<div class="upload-left">` +
+        `<img class="thumb" alt="" ${img ? "" : 'style="visibility:hidden"'}>` +
+        `<div class="upload-info"><strong>${PHOTO_LABELS[slot]}</strong>` +
+        `<small>${id ? (img ? "設定済み ✓" : "読み込み中…") : "未設定"}</small></div>` +
+      `</div>` +
+      `<div class="upload-actions">` +
+        `<label class="file-label">選択<input type="file" accept="image/*"></label>` +
+        `<button class="btn-clear">解除</button>` +
+      `</div>`;
+    if (img) row.querySelector(".thumb").src = img.src;
+    if (id && !img && photoMissing.has(id)) row.querySelector("small").textContent = "見つかりません（再設定してください）";
+    row.querySelector("input").onchange = (e) => handleSlidePhotoUpload(slot, e.target);
+    row.querySelector(".btn-clear").onclick = () => clearSlidePhoto(slot);
+    wrap.appendChild(row);
+  });
+}
+
+async function handleSlidePhotoUpload(slot, input) {
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file) return;
+  const slide = state.slides[currentSlideIndex];
+  try {
+    showToast("写真を処理しています…");
+    const dataUrl = await resizeImage(file, 1400, "image/jpeg", 0.86);
+    const id = "p_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    await PhotoDB.put(id, dataUrl);
+    photoCache[id] = await dataUrlToImage(dataUrl);
+    slide.photos[slot] = id;
+    saveState();
+    gcPhotos();
+    renderPhotoRows();
+    renderPreview();
+    showToast("写真を反映しました");
+  } catch (e) {
+    alert("写真の読み込みに失敗しました: " + (e && e.message ? e.message : e));
+  }
+}
+
+function clearSlidePhoto(slot) {
+  state.slides[currentSlideIndex].photos[slot] = null;
+  saveState();
+  gcPhotos();
+  renderPhotoRows();
+  renderPreview();
+  showToast("写真を解除しました");
+}
+
+// 画像を縮小してDataURL化（共通）
+function resizeImage(file, maxDim, mime, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const scale = Math.min(1, maxDim / Math.max(w, h));
+      w = Math.round(w * scale); h = Math.round(h * scale);
+      const off = document.createElement("canvas");
+      off.width = w; off.height = h;
+      const octx = off.getContext("2d");
+      if (mime === "image/jpeg") { octx.fillStyle = "#fff"; octx.fillRect(0, 0, w, h); }
+      octx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(off.toDataURL(mime, quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("この画像形式は読み込めません")); };
+    img.src = url;
+  });
+}
+
+// ロゴ・医師・背景のアップロード（localStorageに保存）
+async function handleImageUpload(key, input) {
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file) return;
+  try {
+    const maxDim = key === "bg" ? 1200 : 600;
+    const mime = key === "logo" ? "image/png" : "image/jpeg";
+    state.images[key] = await resizeImage(file, maxDim, mime, 0.85);
+    saveState();
+    preloadStoredImages();
+    showToast("画像を反映しました");
+  } catch (e) {
+    alert("画像の読み込みに失敗しました: " + e.message);
+  }
+}
+
+function clearImage(key) {
+  state.images[key] = null;
+  loadedImgObjects[key] = null;
+  saveState();
+  preloadStoredImages();
+  renderPreview();
+  showToast("画像を解除しました");
+}
+
+// 現在のテンプレートの初期文面に戻す（ブランド設定・テーマ・サイズは維持）
+function resetPreset() {
+  const tpl = TEMPLATES[state.template] || TEMPLATES.beauty;
+  if (!confirm(`スライド内容を「${tpl.name}」テンプレートの初期文面に戻しますか？\n（スライド写真も解除されます）`)) return;
+  state.slides = templateSlides(state.template);
+  currentSlideIndex = 0;
+  saveState();
+  gcPhotos();
+  refreshAll();
+  showToast("テンプレートを復元しました");
+}
+
+function refreshAll() {
+  syncFormWithCurrentSlide();
+  renderSlideNav();
+  renderTemplateGrid();
+  renderPreview();
+  scheduleFontRefresh();
+}
+
+// プレビュー描画＋警告表示
+function renderPreview() {
+  const r = renderCanvas(currentSlideIndex);
+  const warn = document.getElementById("previewWarn");
+  const msgs = [];
+  if (r.overflow) msgs.push("⚠ 文字量が多く、枠からはみ出しています");
+  if (r.missingPhoto) msgs.push("📷 写真枠が未設定です（スライドタブで追加）");
+  warn.textContent = msgs.join(" ／ ");
+  warn.classList.toggle("show", msgs.length > 0);
+}
+function requestPreview() {
+  if (!isExporting) renderPreview();
+}
+
+// ==========================================
+// Canvas 描画エンジン（1080×1920 / 1080×1350）
+// 戻り値：{ overflow: 文字はみ出し, missingPhoto: 未設定の写真枠あり }
+// ==========================================
+function renderCanvas(targetSlideIdx = currentSlideIndex) {
+  const canvas = document.getElementById("previewCanvas");
+  const ctx = canvas.getContext("2d");
+  const isFeed = state.format === "feed";
+  const W = 1080;
+  const H = isFeed ? 1350 : 1920;
+
+  canvas.width = W;
+  canvas.height = H;
+
+  const t = THEMES[state.theme] || THEMES.sakura;
+  const slide = state.slides[targetSlideIdx];
+
+  // 1. 背景グラデーション
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, t.bgTop);
+  grad.addColorStop(1, t.bgBottom);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // 2. 背景アップロード画像（薄くオーバーレイ）
+  if (loadedImgObjects.bg) {
+    ctx.save();
+    ctx.globalAlpha = state.theme === "dark" ? 0.16 : 0.14;
+    drawImageCover(ctx, loadedImgObjects.bg, 0, 0, W, H);
+    ctx.restore();
+  }
+
+  // 上品な装飾サークル
+  ctx.save();
+  ctx.fillStyle = t.accent;
+  ctx.globalAlpha = state.theme === "dark" ? 0.08 : 0.12;
+  ctx.beginPath();
+  ctx.arc(W - 80, 140, 260, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(90, H - 140, 220, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // セーフゾーン設定（リールは上下UI被りを避ける）
+  const padX = 72;
+  const topOffset = isFeed ? 76 : 210;
+  const bottomOffset = isFeed ? 76 : 230;
+
+  // 3. ヘッダー領域（タグライン & ロゴ）
+  ctx.fillStyle = t.sub;
+  ctx.font = "600 28px 'Noto Sans JP', sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(state.tagline || "", padX, topOffset + 32);
+
+  if (loadedImgObjects.logo) {
+    const logo = loadedImgObjects.logo;
+    const maxH = 68;
+    const ratio = Math.min(240 / logo.width, maxH / logo.height);
+    const lw = logo.width * ratio;
+    const lh = logo.height * ratio;
+    ctx.drawImage(logo, W - padX - lw, topOffset - 12, lw, lh);
+  } else {
+    ctx.fillStyle = t.primary;
+    ctx.font = "700 28px 'Noto Sans JP', sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(state.handle || "", W - padX, topOffset + 32);
+  }
+
+  // 4. メインカード枠
+  const cardTop = topOffset + 85;
+  const cardBottom = H - bottomOffset - 65;
+  const cardH = cardBottom - cardTop;
+  const cardW = W - padX * 2;
+
+  ctx.save();
+  ctx.fillStyle = t.cardBg;
+  ctx.shadowColor = "rgba(15, 23, 42, 0.08)";
+  ctx.shadowBlur = 36;
+  ctx.shadowOffsetY = 14;
+  roundRect(ctx, padX, cardTop, cardW, cardH, 42);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = t.border;
+  ctx.lineWidth = 3;
+  roundRect(ctx, padX, cardTop, cardW, cardH, 42);
+  ctx.stroke();
+
+  // 5. カード内コンテンツ描画
+  const innerX = padX + 64;
+  const innerW = cardW - 128;
+  let cursorY = cardTop + (isFeed ? 75 : 95);
+
+  const ctaH = 92;
+  const ctaY = cardBottom - ctaH - 54;
+  const contentBottom = slide.cta ? ctaY - 30 : cardBottom - 50;
+
+  // バッジ
+  if (slide.badge) {
+    ctx.font = "700 28px 'Noto Sans JP', sans-serif";
+    const bw = ctx.measureText(slide.badge).width + 56;
+    const bh = 56;
+    ctx.fillStyle = t.badgeBg;
+    roundRect(ctx, innerX, cursorY, bw, bh, 28);
+    ctx.fill();
+
+    ctx.fillStyle = t.badgeInk;
+    ctx.textAlign = "left";
+    ctx.fillText(slide.badge, innerX + 28, cursorY + 38);
+    cursorY += bh + (isFeed ? 46 : 60);
+  }
+
+  // 医師写真（カバーまたはCTAスライド時に表示）
+  const showDoctor = loadedImgObjects.doctor && (slide.role === "cover" || slide.role === "cta");
+  if (showDoctor) {
+    const docSize = isFeed ? 150 : 185;
+    const docX = W - padX - 64 - docSize;
+    const docY = cardTop + 60;
+    drawCircleImage(ctx, loadedImgObjects.doctor, docX, docY, docSize, t.accent);
+  }
+
+  // メインタイトル（明朝体で品格を演出）
+  ctx.fillStyle = t.primary;
+  const titleFontSize = isFeed ? 54 : 62;
+  ctx.font = `700 ${titleFontSize}px 'Shippori Mincho', 'Noto Sans JP', serif`;
+  ctx.textAlign = "left";
+  const titleMaxW = showDoctor ? innerW - 200 : innerW;
+  const titleLines = wrapTextLines(ctx, slide.title || "", titleMaxW);
+  titleLines.forEach(line => {
+    ctx.fillText(line, innerX, cursorY + titleFontSize * 0.85);
+    cursorY += titleFontSize * 1.32;
+  });
+
+  cursorY += 16;
+
+  // アクセントライン
+  ctx.fillStyle = t.accent;
+  roundRect(ctx, innerX, cursorY, 96, 8, 4);
+  ctx.fill();
+  cursorY += 44;
+
+  // サブタイトル
+  if (slide.subtitle) {
+    ctx.fillStyle = t.ink;
+    const subSize = isFeed ? 33 : 36;
+    ctx.font = `700 ${subSize}px 'Noto Sans JP', sans-serif`;
+    const subLines = wrapTextLines(ctx, slide.subtitle, innerW);
+    subLines.forEach(line => {
+      ctx.fillText(line, innerX, cursorY + subSize * 0.85);
+      cursorY += subSize * 1.42;
+    });
+    cursorY += 28;
+  }
+
+  // 本文を先に計測（写真の高さを残りスペースから自動決定するため）
+  const bodySize = isFeed ? 32 : 36;
+  const bodyFont = `400 ${bodySize}px 'Noto Sans JP', sans-serif`;
+  ctx.font = bodyFont;
+  const bodyLines = slide.body ? wrapTextLines(ctx, slide.body, innerW) : [];
+  const bodyH = bodyLines.reduce((h, l) => h + (l === "" ? bodySize * 0.7 : bodySize * 1.55), 0);
+
+  // スライド写真（1枚 / Before・After）
+  let missingPhoto = false;
+  const slots = PHOTO_SLOTS[slide.photoMode] || [];
+  if (slots.length) {
+    const noteSize = isFeed ? 22 : 24;
+    const noteFont = `500 ${noteSize}px 'Noto Sans JP', sans-serif`;
+    ctx.font = noteFont;
+    const noteLines = slide.photoNote ? wrapTextLines(ctx, slide.photoNote, innerW) : [];
+    const noteH = noteLines.length ? 14 + noteLines.length * noteSize * 1.45 : 0;
+    const gapAfter = bodyLines.length ? 36 : 0;
+    const minH = isFeed ? 220 : 300;
+    const maxH = isFeed ? 440 : 640;
+    const avail = contentBottom - cursorY - noteH - gapAfter - bodyH;
+    const photoH = Math.max(minH, Math.min(maxH, avail));
+    const gap = 24;
+    const boxW = slots.length === 2 ? (innerW - gap) / 2 : innerW;
+
+    slots.forEach((slot, i) => {
+      const img = getSlidePhoto(slide, slot);
+      if (!img) missingPhoto = true;
+      const label = slide.photoMode === "ba" ? slot.toUpperCase() : "";
+      drawPhotoBox(ctx, img, innerX + i * (boxW + gap), cursorY, boxW, photoH, t, label);
+    });
+    if (slots.length === 2) {
+      drawArrowBadge(ctx, innerX + boxW + gap / 2, cursorY + photoH / 2, t);
+    }
+    cursorY += photoH;
+
+    if (noteLines.length) {
+      cursorY += 14;
+      ctx.font = noteFont;
+      ctx.fillStyle = t.sub;
+      ctx.textAlign = "left";
+      noteLines.forEach(line => {
+        ctx.fillText(line, innerX, cursorY + noteSize * 0.85);
+        cursorY += noteSize * 1.45;
+      });
+    }
+    cursorY += gapAfter;
+  }
+
+  // 本文
+  if (bodyLines.length) {
+    ctx.fillStyle = t.ink;
+    ctx.font = bodyFont;
+    ctx.textAlign = "left";
+    bodyLines.forEach(line => {
+      if (line === "") {
+        cursorY += bodySize * 0.7;
+      } else {
+        ctx.fillText(line, innerX, cursorY + bodySize * 0.85);
+        cursorY += bodySize * 1.55;
+      }
+    });
+  }
+  const overflow = cursorY > contentBottom + 6;
+
+  // CTAボタン（カード下部）
+  if (slide.cta) {
+    ctx.fillStyle = t.ctaBg;
+    roundRect(ctx, innerX, ctaY, innerW, ctaH, 46);
+    ctx.fill();
+
+    ctx.fillStyle = t.ctaInk;
+    ctx.font = "700 34px 'Noto Sans JP', sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(slide.cta, W / 2, ctaY + 58);
+  }
+
+  // 6. フッター（ハンドル名 ＆ ページ番号インジケーター）
+  const footerY = cardBottom + 46;
+  ctx.fillStyle = t.sub;
+  ctx.font = "600 28px 'Noto Sans JP', sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(state.handle || "", padX + 12, footerY);
+
+  ctx.textAlign = "right";
+  ctx.fillText(`${targetSlideIdx + 1} / ${state.slides.length}`, W - padX - 12, footerY);
+
+  return { overflow, missingPhoto };
+}
+
+// ヘルパー：写真枠（画像があればカバー配置、なければ点線のプレースホルダー）
+function drawPhotoBox(ctx, img, x, y, w, h, t, label) {
+  const r = 28;
+  ctx.save();
+  roundRect(ctx, x, y, w, h, r);
+  ctx.clip();
+  if (img) {
+    drawImageCover(ctx, img, x, y, w, h);
+  } else {
+    ctx.fillStyle = t.badgeBg;
+    ctx.fillRect(x, y, w, h);
+  }
+  ctx.restore();
+
+  if (!img) {
+    ctx.save();
+    ctx.setLineDash([14, 10]);
+    ctx.strokeStyle = t.accent;
+    ctx.lineWidth = 3;
+    roundRect(ctx, x + 1.5, y + 1.5, w - 3, h - 3, r);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = t.sub;
+    ctx.textAlign = "center";
+    ctx.font = "700 30px 'Noto Sans JP', sans-serif";
+    ctx.fillText("写真を追加", x + w / 2, y + h / 2 + 4);
+    ctx.font = "400 22px 'Noto Sans JP', sans-serif";
+    ctx.fillText("スライド編集から", x + w / 2, y + h / 2 + 40);
+    ctx.textAlign = "left";
+  } else {
+    ctx.save();
+    ctx.strokeStyle = t.border;
+    ctx.lineWidth = 3;
+    roundRect(ctx, x, y, w, h, r);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  if (label) {
+    ctx.font = "700 24px 'Noto Sans JP', sans-serif";
+    const pw = ctx.measureText(label).width + 36;
+    const isAfter = label === "AFTER";
+    ctx.fillStyle = isAfter ? t.ctaBg : "rgba(15, 23, 42, 0.72)";
+    roundRect(ctx, x + 18, y + 18, pw, 46, 23);
+    ctx.fill();
+    ctx.fillStyle = isAfter ? t.ctaInk : "#ffffff";
+    ctx.textAlign = "left";
+    ctx.fillText(label, x + 18 + 18, y + 18 + 32);
+  }
+}
+
+// ヘルパー：Before→After の矢印バッジ
+function drawArrowBadge(ctx, cx, cy, t) {
+  const r = 30;
+  ctx.save();
+  ctx.fillStyle = t.ctaBg;
+  ctx.shadowColor = "rgba(15, 23, 42, 0.18)";
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = t.ctaInk;
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, cy - 13);
+  ctx.lineTo(cx + 13, cy);
+  ctx.lineTo(cx - 8, cy + 13);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// ヘルパー：テキスト折り返し（手動改行＋幅自動折り返し）
+function wrapTextLines(ctx, text, maxWidth) {
+  const result = [];
+  text.split("\n").forEach(p => {
+    if (p === "") { result.push(""); return; }
+    let line = "";
+    for (const char of p) { // for...of で絵文字（サロゲートペア）を分割しない
+      const testLine = line + char;
+      if (ctx.measureText(testLine).width > maxWidth && line !== "") {
+        result.push(line);
+        line = char;
+      } else {
+        line = testLine;
+      }
+    }
+    result.push(line);
+  });
+  return result;
+}
+
+// ヘルパー：角丸矩形
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// ヘルパー：画像をカバー配置
+function drawImageCover(ctx, img, x, y, w, h) {
+  const ir = img.width / img.height;
+  const cr = w / h;
+  let sx, sy, sw, sh;
+  if (ir > cr) {
+    sh = img.height; sw = sh * cr; sx = (img.width - sw) / 2; sy = 0;
+  } else {
+    sw = img.width; sh = sw / cr; sx = 0; sy = (img.height - sh) / 2;
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+}
+
+// ヘルパー：丸型医師写真描画
+function drawCircleImage(ctx, img, x, y, size, borderColor) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+  drawImageCover(ctx, img, x, y, size, size);
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ==========================================
+// 保存機能（個別PNG & 一括ZIP）
+// ==========================================
+function describeIssues(issues) {
+  return issues.map(i => `・${i.n}枚目：${[i.overflow && "文字はみ出し", i.missingPhoto && "写真未設定"].filter(Boolean).join("・")}`).join("\n");
+}
+
+async function downloadCurrentPNG() {
+  const btn = document.getElementById("btnPng");
+  btn.disabled = true;
+  isExporting = true;
+  try {
+    await Promise.all([ensureFonts(), ensureAllPhotos()]);
+    const r = renderCanvas(currentSlideIndex);
+    if ((r.overflow || r.missingPhoto) &&
+        !confirm(`次の点が気になります。このまま保存しますか？\n${describeIssues([{ n: currentSlideIndex + 1, ...r }])}`)) return;
+    const canvas = document.getElementById("previewCanvas");
+    const link = document.createElement("a");
+    link.download = `slide${currentSlideIndex + 1}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+    showToast(`slide${currentSlideIndex + 1}.png を保存しました`);
+  } finally {
+    isExporting = false;
+    btn.disabled = false;
+    renderPreview();
+  }
+}
+
+async function downloadAllZIP() {
+  if (typeof JSZip === "undefined") {
+    alert("ZIPライブラリの読み込み中です。数秒後にもう一度お試しください。");
+    return;
+  }
+  const btn = document.getElementById("btnZip");
+  const origText = btn.textContent;
+  btn.textContent = "ZIP作成中...";
+  btn.disabled = true;
+  isExporting = true;
+
+  try {
+    await Promise.all([ensureFonts(), ensureAllPhotos()]);
+    const zip = new JSZip();
+    const canvas = document.getElementById("previewCanvas");
+    const issues = [];
+
+    for (let i = 0; i < state.slides.length; i++) {
+      const r = renderCanvas(i);
+      if (r.overflow || r.missingPhoto) issues.push({ n: i + 1, ...r });
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+      zip.file(`slide${i + 1}.png`, blob);
+    }
+
+    if (issues.length && !confirm(`次のスライドが気になります。このまま保存しますか？\n${describeIssues(issues)}`)) return;
+
+    const content = await zip.generateAsync({ type: "blob" });
+    const zipName = state.format === "feed" ? "feed_slides.zip" : "reels.zip";
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(content);
+    link.download = zipName;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+    showToast(`${zipName} をダウンロードしました！`);
+  } catch (err) {
+    alert("ZIP保存中にエラーが発生しました: " + err.message);
+  } finally {
+    isExporting = false;
+    btn.textContent = origText;
+    btn.disabled = false;
+    renderPreview();
+  }
+}
+
+// ==========================================
+// タスクB：AI構成・文章自動生成
+//  - APIキーあり：OpenAI / Gemini をブラウザから直接呼び出し（サーバー不要）
+//  - APIキーなし：ルールベースでテンプレートを埋める「オフライン作成」
+// ==========================================
+const AI_SETTINGS_KEY = "clinic_insta_studio_ai_settings";
+const AI_PROVIDERS = {
+  openai: { name: "OpenAI", defaultModel: "gpt-5-mini", keyHint: "sk-..." },
+  gemini: { name: "Gemini", defaultModel: "gemini-flash-latest", keyHint: "AIza..." }
+};
+const AI_TIMEOUT_MS = 90000;
+
+let aiSettings = loadAiSettings();
+let aiBusy = false;
+
+function loadAiSettings() {
+  const base = { provider: "openai", keys: { openai: "", gemini: "" }, models: { openai: "", gemini: "" } };
+  try {
+    const s = JSON.parse(localStorage.getItem(AI_SETTINGS_KEY) || "{}");
+    return {
+      provider: AI_PROVIDERS[s.provider] ? s.provider : "openai",
+      keys: { ...base.keys, ...(s.keys || {}) },
+      models: { ...base.models, ...(s.models || {}) }
+    };
+  } catch (e) { return base; }
+}
+function saveAiSettings() {
+  try { localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(aiSettings)); } catch (e) {}
+}
+function currentAiKey() { return (aiSettings.keys[aiSettings.provider] || "").trim(); }
+function currentAiModel() {
+  return (aiSettings.models[aiSettings.provider] || "").trim() || AI_PROVIDERS[aiSettings.provider].defaultModel;
+}
+
+// ---------- 設定UI ----------
+function setAiProvider(p) {
+  aiSettings.provider = p;
+  saveAiSettings();
+  syncAiSettingsUI();
+}
+function syncAiSettingsUI() {
+  const p = aiSettings.provider;
+  document.querySelectorAll("[data-provider]").forEach(b => b.classList.toggle("active", b.dataset.provider === p));
+  const keyEl = document.getElementById("aiKey");
+  keyEl.value = aiSettings.keys[p] || "";
+  keyEl.placeholder = AI_PROVIDERS[p].keyHint;
+  const modelEl = document.getElementById("aiModel");
+  modelEl.value = aiSettings.models[p] || "";
+  modelEl.placeholder = AI_PROVIDERS[p].defaultModel;
+
+  const badge = document.getElementById("aiKeyBadge");
+  const has = !!currentAiKey();
+  badge.textContent = has ? `${AI_PROVIDERS[p].name} 設定済み` : "未設定";
+  badge.classList.toggle("ok", has);
+
+  const status = document.getElementById("aiStatus");
+  if (has) {
+    status.textContent = `✓ ${AI_PROVIDERS[p].name}（${currentAiModel()}）で生成します。`;
+    status.classList.add("ok");
+  } else {
+    status.textContent = "APIキー未設定のため「AIで生成」はオフライン作成になります（下の⚙️AI設定から登録できます）。";
+    status.classList.remove("ok");
+  }
+}
+function saveAiKey() {
+  const p = aiSettings.provider;
+  aiSettings.keys[p] = document.getElementById("aiKey").value.trim();
+  aiSettings.models[p] = document.getElementById("aiModel").value.trim();
+  saveAiSettings();
+  syncAiSettingsUI();
+  showToast(aiSettings.keys[p] ? `${AI_PROVIDERS[p].name}のキーを保存しました` : "設定を保存しました");
+}
+function deleteAiKey() {
+  const p = aiSettings.provider;
+  if (!confirm(`${AI_PROVIDERS[p].name}のAPIキーをこの端末から削除しますか？`)) return;
+  aiSettings.keys[p] = "";
+  saveAiSettings();
+  syncAiSettingsUI();
+  showToast("APIキーを削除しました");
+}
+function toggleKeyVisibility() {
+  const el = document.getElementById("aiKey");
+  el.type = el.type === "password" ? "text" : "password";
+}
+
+// ---------- 入力UI ----------
+function updateAiInput(field, value) {
+  state.ai[field] = value;
+  saveState();
+}
+function updateCaptionField(field, value) {
+  state[field] = value;
+  saveState();
+}
+function syncAiUI() {
+  const sel = document.getElementById("aiStructure");
+  sel.innerHTML = "";
+  [["auto", "おまかせ（自動判定）"], ...Object.entries(TEMPLATES).map(([k, t]) => [k, `${t.emoji} ${t.name}`])]
+    .forEach(([v, label]) => {
+      const o = document.createElement("option");
+      o.value = v; o.textContent = label;
+      sel.appendChild(o);
+    });
+  sel.value = state.ai.structure || "auto";
+  document.getElementById("aiTheme").value = state.ai.theme || "";
+  document.getElementById("aiTarget").value = state.ai.target || "";
+  document.getElementById("aiMessage").value = state.ai.message || "";
+  document.getElementById("aiCount").value = String(state.ai.count || 5);
+  document.getElementById("inCaption").value = state.caption || "";
+  document.getElementById("inHashtags").value = state.hashtags || "";
+  syncAiSettingsUI();
+  renderDraft();
+}
+
+// ---------- 構成タイプの自動判定 ----------
+function detectStructure(text) {
+  const rules = [
+    ["case", /症例|ビフォー|アフター|before|after|経過/i],
+    ["campaign", /キャンペーン|割引|限定|特典|モニター募集|OFF|％オフ|%オフ/i],
+    ["faq", /質問|Q&A|QA|FAQ|疑問/i],
+    ["doctor", /医師紹介|院長紹介|ドクター紹介|自己紹介|経歴|プロフィール/],
+    ["diet", /ダイエット|痩せ|やせ|減量|体重|体脂肪|PFC|GLP|糖質制限/i]
+  ];
+  const hit = rules.find(([, re]) => re.test(text));
+  return hit ? hit[0] : "beauty";
+}
+
+// ---------- オフライン生成（ルールベース） ----------
+const oneLine = s => (s || "").replace(/\s*\n\s*/g, "");
+
+function buildColumnSlides(type, T, G, M, count) {
+  const points = [
+    { label: "基本", title: `そもそも\n${T}とは？`, subtitle: `${G}にこそ知ってほしい基本`,
+      body: `・${T}の特徴（ここに要点を記入）\n・期待できること（効果には個人差があります）\n・こんな方に向いています` },
+    { label: "取り入れ方", title: `${T}の\nおすすめの取り入れ方`, subtitle: M,
+      body: "・タイミング：〇〇（例：朝・食前など）\n・量の目安：〇〇\n・続けるコツ：〇〇" },
+    { label: "注意点", title: `${T}で\n気をつけたいこと`, subtitle: "体質・持病・服薬によっては注意が必要です",
+      body: "・摂りすぎ／やりすぎに注意\n・体調に変化があれば中止して相談を\n・妊娠授乳中・服薬中の方は医師へ相談" },
+    { label: "続けるコツ", title: "無理なく続ける\n3つのコツ", subtitle: "完璧より「続けられる形」が大切",
+      body: "・まずは1週間、できる日だけでOK\n・いつもの習慣とセットにする\n・変化をメモして振り返る" },
+    { label: "Q&A", title: `${T}の\nよくある質問`, subtitle: `Q. ${G}でも取り入れられますか？`,
+      body: "A. 〇〇（ここに回答を記入）\n\n※気になる症状がある方は\n診察でご相談ください" }
+  ].slice(0, Math.max(1, Math.min(5, count - 2)));
+
+  const isDiet = type === "diet";
+  const cover = sl("cover", isDiet ? "DIET COLUMN" : "DOCTOR'S COLUMN",
+    `医師が教える\n${T}の取り入れ方`,
+    `${G}向け｜${M}`,
+    points.slice(0, 4).map(p => "✔ " + oneLine(p.title)).join("\n") + "\n\n美容皮膚科医が解説します",
+    "スワイプして読む →");
+  const mids = points.map((p, i) =>
+    sl("content", `POINT ${String(i + 1).padStart(2, "0")}｜${p.label}`, p.title, p.subtitle, p.body));
+  const cta = sl("cta", "SUMMARY & SAVE",
+    isDiet ? `${T}で\n無理なく体づくりを` : `${T}で\n無理なくキレイを育てよう`,
+    "※効果には個人差があります。服薬中・妊娠授乳中の方は医師へご相談ください",
+    "後から見返せるように\n保存しておくのがおすすめです。\n\nご質問はコメント・DMでお気軽にどうぞ！",
+    "保存して見返す 📌");
+  return [cover, ...mids, cta];
+}
+
+function buildFromTemplate(type, T, G, M, count) {
+  let slides = JSON.parse(JSON.stringify(TEMPLATES[type].slides));
+  // 枚数調整：足りなければCTA前に追加、多ければ写真なしの本文スライドを後ろから削除
+  while (slides.length < count) {
+    slides.splice(slides.length - 1, 0, sl("content", "POINT｜補足", `${T}の\nポイント`, M,
+      "・〇〇（ここに補足を記入）\n・〇〇\n・〇〇"));
+  }
+  while (slides.length > count) {
+    let idx = -1;
+    for (let i = slides.length - 2; i >= 1; i--) {
+      if (slides[i].role === "content" && (!slides[i].photoMode || slides[i].photoMode === "none")) { idx = i; break; }
+    }
+    if (idx < 0) break;
+    slides.splice(idx, 1);
+  }
+  const isTreatment = /治療|施術|注射|レーザー|ピーリング|ボトックス|ヒアルロン|HIFU|ハイフ|ダーマ|点滴/i.test(T);
+  const treat = isTreatment ? T : `${T}治療`;
+  const replaceText = s => (s || "")
+    .replace(/テーマ：〇〇治療/g, `テーマ：${treat}`)
+    .replace(/〇〇治療/g, treat)
+    .replace(/〇〇キャンペーン/g, `${T}キャンペーン`);
+  slides = slides.map(s => {
+    const out = { ...s };
+    ["badge", "title", "subtitle", "body", "cta", "photoNote"].forEach(f => { out[f] = replaceText(out[f]); });
+    return out;
+  });
+  if (type === "case") slides[0].subtitle = slides[0].subtitle.replace("30代女性", G);
+  if (type === "doctor" || type === "faq") slides[0].subtitle = `${slides[0].subtitle}｜${M}`.replace(/^｜/, "");
+  if (type === "campaign") {
+    const target = slides.find(s => /TARGET/.test(s.badge));
+    if (target) target.body = `・${G}\n` + target.body.split("\n").slice(0, 2).join("\n");
+  }
+  return slides;
+}
+
+const BASE_TAGS = {
+  beauty: ["#美容皮膚科", "#インナーケア", "#美肌習慣", "#美容医療", "#スキンケア"],
+  diet: ["#医療ダイエット", "#ダイエット", "#血糖値コントロール", "#PFCバランス", "#美容皮膚科"],
+  case: ["#症例写真", "#美容皮膚科", "#美容医療", "#肌治療", "#美容クリニック"],
+  doctor: ["#美容皮膚科医", "#医師紹介", "#美容クリニック", "#美容医療", "#美容皮膚科"],
+  faq: ["#よくある質問", "#美容皮膚科", "#美容医療", "#肌悩み", "#美容クリニック"],
+  campaign: ["#キャンペーン", "#美容クリニック", "#美容皮膚科", "#美容医療", "#期間限定"]
+};
+function toTag(s) {
+  const t = (s || "").replace(/[\s#＃、。・,.!！?？「」『』（）()\/／〜~:：]/g, "");
+  return t ? "#" + t : "";
+}
+function buildHashtags(type, T, G) {
+  const tags = [toTag(T), ...(BASE_TAGS[type] || BASE_TAGS.beauty)];
+  if (G && G.length <= 12) tags.push(toTag(G));
+  tags.push("#美容好き", "#大人の肌ケア");
+  return [...new Set(tags.filter(t => t.length > 1))].slice(0, 10).join(" ");
+}
+function buildCaption(slides, type, G, M) {
+  const head = oneLine(slides[0].title);
+  const points = slides.slice(1, -1).map(s => "✔ " + oneLine(s.title)).join("\n");
+  const notes = ["※効果には個人差があります。", "※気になる症状がある方は医師にご相談ください。"];
+  if (type === "campaign") notes.push("※表示価格はすべて税込です。");
+  return [
+    `【${head}】`, "",
+    `${G}の方へ🌿`, M, "",
+    "この投稿では", points, "をまとめました。", "",
+    "後から見返せるように「保存」がおすすめです📌",
+    "ご質問はコメント・DMでお気軽にどうぞ。", "",
+    ...notes, "",
+    [state.tagline, state.handle].filter(Boolean).join("\n")
+  ].join("\n").trim();
+}
+
+function offlineGenerate(input) {
+  const T = input.theme.trim() || "〇〇";
+  const G = input.target.trim() || "忙しい方";
+  const M = input.message.trim() || `${T}の上手な取り入れ方`;
+  const type = input.structure === "auto" ? detectStructure(`${T} ${M}`) : input.structure;
+  const count = Math.max(5, Math.min(7, Number(input.count) || 5));
+  const slides = (type === "beauty" || type === "diet")
+    ? buildColumnSlides(type, T, G, M, count)
+    : buildFromTemplate(type, T, G, M, count);
+  return {
+    source: "offline", type, slides,
+    caption: buildCaption(slides, type, G, M),
+    hashtags: buildHashtags(type, T, G)
+  };
+}
+
+// ---------- AI生成（OpenAI / Gemini 直接呼び出し） ----------
+function buildAiPrompt(input, type, count) {
+  const tpl = TEMPLATES[type];
+  const outline = tpl.slides.map((s, i) => `${i + 1}. [${s.role}] ${s.badge}：${oneLine(s.title)}`).join("\n");
+  const system = [
+    "あなたは美容クリニックのInstagram運用を担当する編集者です。美容皮膚科医が監修する投稿の文章を日本語で作成します。",
+    "必ず守るルール：",
+    "- 医療広告ガイドラインに配慮する。「絶対」「必ず」「最高」「No.1」「最安」「誰でも」などの誇大・比較・断定表現は使わない。",
+    "- 効果に触れる場合は「個人差があります」と添える。",
+    "- 施術を扱う場合は、主なリスク・副作用・ダウンタイム、費用（税込）に触れる。",
+    "- 実在しない症例・体験談・数値・経歴を作らない。料金・期間・経歴などクリニック固有の情報は「〇〇」のまま残す。",
+    "- 医学的に確立していない断定は避け、一般的に知られている範囲で、やさしく親しみやすい語り口で書く。",
+    "- 出力は指定されたJSONのみ。前後に説明文やコードブロックを付けない。"
+  ].join("\n");
+  const user = [
+    `テーマ：${input.theme}`,
+    `ターゲット：${input.target || "（指定なし）"}`,
+    `伝えたいこと：${input.message || "（指定なし）"}`,
+    `構成タイプ：${tpl.name}`,
+    `枚数：${count}枚（1枚目はrole="cover"、最後はrole="cta"、間はrole="content"）`,
+    "参考構成：", outline, "",
+    "画像に収めるための文字数ルール（厳守）：",
+    "- title：2行以内、1行14文字以内。改行は\\n",
+    "- badge：英大文字ラベル＋「｜」＋日本語（例：POINT 01｜朝）。20文字以内",
+    "- subtitle：40文字以内",
+    "- body：「・」始まりの箇条書き3〜4行、1行22文字以内。改行は\\n",
+    "- cta：coverとctaのスライドのみ20文字以内で記入（contentは空文字）",
+    `- photoMode：通常は"none"。症例紹介の経過スライドのみ"ba"`,
+    "- caption：Instagram投稿用キャプション。300〜500文字。改行と絵文字を適度に使い、最後に保存や相談を促す一文と「※効果には個人差があります」を入れる",
+    "- hashtags：日本語中心で8〜10個、それぞれ#付き",
+    "",
+    'JSON形式：{"slides":[{"role":"cover","badge":"","title":"","subtitle":"","body":"","cta":"","photoMode":"none"}],"caption":"","hashtags":["#..."]}'
+  ].join("\n");
+  return { system, user };
+}
+
+async function apiError(res, providerName) {
+  let detail = "";
+  try {
+    const j = await res.json();
+    detail = (j.error && (j.error.message || j.error.status)) || "";
+  } catch (e) {}
+  const map = {
+    400: "リクエストが受け付けられませんでした（モデル名やキーを確認してください）",
+    401: "APIキーが正しくありません",
+    403: "APIキーにこの操作の権限がありません",
+    404: "モデルが見つかりません（⚙️AI設定のモデル名を確認してください）",
+    429: "利用上限に達したか、混み合っています。時間をおいて再度お試しください"
+  };
+  const msg = map[res.status] || (res.status >= 500 ? `${providerName}側でエラーが発生しました` : `エラー（${res.status}）`);
+  return new Error(detail ? `${msg}\n詳細：${detail}` : msg);
+}
+
+async function callOpenAI({ system, user }, key, model, signal) {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "system", content: system }, { role: "user", content: user }],
+      response_format: { type: "json_object" }
+    }),
+    signal
+  });
+  if (!res.ok) throw await apiError(res, "OpenAI");
+  const data = await res.json();
+  return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "";
+}
+
+async function callGemini({ system, user }, key, model, signal) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: "user", parts: [{ text: user }] }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0.8 }
+    }),
+    signal
+  });
+  if (!res.ok) throw await apiError(res, "Gemini");
+  const data = await res.json();
+  const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+  return parts.map(p => p.text || "").join("");
+}
+
+function parseAiJson(text) {
+  let t = (text || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if (a < 0 || b < a) throw new Error("AIの応答を読み取れませんでした（JSON形式ではありません）");
+  try { return JSON.parse(t.slice(a, b + 1)); }
+  catch (e) { throw new Error("AIの応答を読み取れませんでした（JSONの形式エラー）"); }
+}
+
+function normalizeAiResult(obj, type) {
+  const str = v => (typeof v === "string" ? v : v == null ? "" : String(v)).replace(/\\n/g, "\n").trim();
+  const raw = Array.isArray(obj.slides) ? obj.slides : [];
+  if (raw.length < 3) throw new Error("AIの応答に十分なスライドがありませんでした。もう一度お試しください。");
+  const slides = raw.slice(0, MAX_SLIDES).map((s, i, arr) => {
+    const role = i === 0 ? "cover" : i === arr.length - 1 ? "cta" : "content";
+    const photoMode = ["none", "single", "ba"].includes(s && s.photoMode) ? s.photoMode : "none";
+    return {
+      role,
+      badge: str(s && s.badge),
+      title: str(s && s.title),
+      subtitle: str(s && s.subtitle),
+      body: Array.isArray(s && s.body) ? s.body.map(str).join("\n") : str(s && s.body),
+      cta: role === "content" ? "" : str(s && s.cta),
+      photoMode,
+      photoNote: photoMode === "none" ? "" : CASE_NOTE
+    };
+  });
+  let tags = obj.hashtags;
+  if (typeof tags === "string") tags = tags.split(/[\s,、]+/);
+  tags = (Array.isArray(tags) ? tags : []).map(str).filter(Boolean).map(t => (t.startsWith("#") || t.startsWith("＃") ? t : "#" + t));
+  return {
+    source: "ai", type, slides,
+    caption: str(obj.caption),
+    hashtags: [...new Set(tags)].join(" ")
+  };
+}
+
+async function aiGenerate(input) {
+  const type = input.structure === "auto" ? detectStructure(`${input.theme} ${input.message}`) : input.structure;
+  const count = Math.max(5, Math.min(7, Number(input.count) || 5));
+  const prompt = buildAiPrompt(input, type, count);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), AI_TIMEOUT_MS);
+  try {
+    const call = aiSettings.provider === "gemini" ? callGemini : callOpenAI;
+    const text = await call(prompt, currentAiKey(), currentAiModel(), ctrl.signal);
+    return normalizeAiResult(parseAiJson(text), type);
+  } catch (e) {
+    if (e.name === "AbortError") throw new Error("時間内に応答がありませんでした。通信環境を確認してもう一度お試しください。");
+    if (e instanceof TypeError) throw new Error("通信できませんでした（オフライン、またはネットワークの制限の可能性があります）");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ---------- 生成フロー ----------
+async function generateDraft(mode) {
+  if (aiBusy) return;
+  const input = { ...state.ai };
+  if (!(input.theme || "").trim()) {
+    showToast("テーマを入力してください");
+    document.getElementById("aiTheme").focus();
+    return;
+  }
+  let draft;
+  if (mode === "ai" && currentAiKey()) {
+    const btn = document.getElementById("btnAiGenerate");
+    const orig = btn.textContent;
+    aiBusy = true;
+    btn.disabled = true;
+    document.getElementById("btnOfflineGenerate").disabled = true;
+    btn.textContent = "生成中…（〜30秒）";
+    try {
+      draft = await aiGenerate(input);
+    } catch (e) {
+      if (!confirm(`AI生成に失敗しました。\n${e.message}\n\n代わりにオフライン作成しますか？`)) return;
+      draft = offlineGenerate(input);
+    } finally {
+      aiBusy = false;
+      btn.disabled = false;
+      document.getElementById("btnOfflineGenerate").disabled = false;
+      btn.textContent = orig;
+    }
+  } else {
+    if (mode === "ai") showToast("APIキー未設定のため、オフライン作成しました");
+    draft = offlineGenerate(input);
+  }
+
+  state.aiDraft = { source: draft.source, type: draft.type, slides: draft.slides, theme: input.theme };
+  state.caption = draft.caption;
+  state.hashtags = draft.hashtags;
+  saveState();
+  document.getElementById("inCaption").value = state.caption;
+  document.getElementById("inHashtags").value = state.hashtags;
+  renderDraft();
+  document.getElementById("draftCard").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (mode !== "ai" || currentAiKey()) showToast(draft.source === "ai" ? "AIで生成しました" : "オフラインで作成しました");
+}
+
+function renderDraft() {
+  const card = document.getElementById("draftCard");
+  const d = state.aiDraft;
+  if (!d || !Array.isArray(d.slides) || !d.slides.length) { card.style.display = "none"; return; }
+  card.style.display = "";
+  const tpl = TEMPLATES[d.type];
+  document.getElementById("draftTitle").textContent =
+    `生成結果（${d.source === "ai" ? "AI" : "オフライン"}・${tpl ? tpl.name : ""}・${d.slides.length}枚）`;
+  const list = document.getElementById("draftList");
+  list.innerHTML = "";
+  d.slides.forEach((s, i) => {
+    const li = document.createElement("li");
+    const b = document.createElement("b");
+    b.textContent = `${i + 1}枚目　${s.badge || s.role}`;
+    const t = document.createElement("span");
+    t.textContent = s.title;
+    const sub = document.createElement("small");
+    sub.textContent = s.subtitle || "";
+    li.append(b, t, sub);
+    list.appendChild(li);
+  });
+}
+
+function applyDraft() {
+  const d = state.aiDraft;
+  if (!d) return;
+  if (!confirm(`生成した${d.slides.length}枚をスライドに反映しますか？\n現在のスライド内容とスライド写真は上書きされます。`)) return;
+  state.slides = JSON.parse(JSON.stringify(d.slides)).map(normalizeSlide);
+  if (TEMPLATES[d.type]) state.template = d.type;
+  currentSlideIndex = 0;
+  saveState();
+  gcPhotos();
+  refreshAll();
+  switchTab("slide");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+
+  // 文字はみ出しチェック
+  ensureFonts().then(() => {
+    const over = state.slides.map((_, i) => renderCanvas(i).overflow ? i + 1 : 0).filter(Boolean);
+    renderPreview();
+    showToast(over.length ? `反映しました（${over.join("・")}枚目は文字量が多めです）` : "スライドに反映しました");
+  });
+}
+
+// ---------- コピー ----------
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (e2) {}
+    document.body.removeChild(ta);
+    return ok;
+  }
+}
+async function copyCaption(kind) {
+  const cap = (state.caption || "").trim();
+  const tags = (state.hashtags || "").trim();
+  const text = kind === "caption" ? cap : kind === "hashtags" ? tags : [cap, tags].filter(Boolean).join("\n\n");
+  if (!text) { showToast("コピーする内容がありません"); return; }
+  showToast((await copyText(text)) ? "コピーしました 📋" : "コピーできませんでした。長押しで選択してください");
+}
+
+// PWA Service Worker 登録
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+  });
+}
+
+// 初期化実行
+syncFormWithCurrentSlide();
+renderSlideNav();
+renderTemplateGrid();
+syncAiUI();
+preloadStoredImages();
+renderPreview();
+ensureFonts().then(requestPreview);
+ensureAllPhotos().then(() => { requestPreview(); renderPhotoRows(); });
+gcPhotos();
+</script>
+</body>
+</html>
